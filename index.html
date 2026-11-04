@@ -135,7 +135,7 @@
         </div>
     </header>
 
-    <!-- KPI CARDS -->
+    <!-- KPI CARDS (CỐ ĐỊNH TOÀN BỘ KHO, KHÔNG ĐỔI KHI LỌC) -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div class="card flex items-center border-l-4 border-blue-500">
             <div class="p-3 bg-blue-50 text-blue-600 rounded-full mr-3"><i class="fa-solid fa-boxes-stacked text-xl"></i></div>
@@ -370,7 +370,7 @@
 
                     const sentDate = parseExcelDate(row[0]);
                     const returnDateVal = parseExcelDate(row[7]);
-                    const palletSent = parseFloat(row[4]) || 1; // Đọc chính xác cột Pallet từng dòng (vd: 0.5, 1...)
+                    const palletSent = parseFloat(row[4]) || 1;
 
                     const isReturnBlank = !row[7];
                     
@@ -412,6 +412,7 @@
                 document.getElementById('btnViewAllTrend').innerText = 'View All';
 
                 updateFilterDropdowns();
+                updateKPIsGlobal(); // Cố định KPI toàn kho khi nạp file
                 applyFilters();
                 alert(`Đã tải thành công ${rawData.length} dòng dữ liệu từ file Excel!`);
             };
@@ -454,6 +455,7 @@
             document.getElementById('lastUpdatedLabel').innerText = `Last Updated: 04/11/2026 13:29`;
 
             updateFilterDropdowns();
+            updateKPIsGlobal(); // Cố định KPI toàn kho
             applyFilters();
         }
 
@@ -540,7 +542,6 @@
                 return matchYr && matchMo && matchWk;
             });
 
-            updateKPIs();
             updateCharts();
             updateTable();
         }
@@ -556,18 +557,18 @@
             applyFilters();
         }
 
-        // Cập nhật KPI đồng bộ theo filteredData để khớp tuyệt đối với bảng chi tiết và file Excel
-        function updateKPIs() {
-            const outstanding = filteredData.filter(d => !d.isReturned);
-            const occupied = Math.round(outstanding.reduce((sum, d) => sum + d.palletSent, 0));
+        // Cố định KPI theo toàn bộ rawData (không thay đổi khi lọc)
+        function updateKPIsGlobal() {
+            const outstandingGlobal = rawData.filter(d => !d.isReturned);
+            const occupied = Math.round(outstandingGlobal.reduce((sum, d) => sum + d.palletSent, 0));
             const available = Math.max(0, Math.floor(TOTAL_CAPACITY - occupied));
             const utilRate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2);
             
-            const avgAging = outstanding.length > 0 
-                ? (outstanding.reduce((sum, d) => sum + d.aging, 0) / outstanding.length).toFixed(1) 
+            const avgAging = outstandingGlobal.length > 0 
+                ? (outstandingGlobal.reduce((sum, d) => sum + d.aging, 0) / outstandingGlobal.length).toFixed(1) 
                 : 0;
 
-            const overdue = outstanding.filter(d => d.aging > 30).length;
+            const overdue = outstandingGlobal.filter(d => d.aging > 30).length;
 
             document.getElementById('kpiOccupied').innerText = occupied;
             document.getElementById('kpiAvailable').innerText = available;
@@ -609,6 +610,7 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = '#002b49';
 
+                    // Capacity overview doughnut vẫn tính trên filteredData hoặc tổng kho? (Tùy chọn, để doughnut theo filteredData hoặc global đều được, ở đây để theo filteredData cho trực quan với biểu đồ)
                     const outstanding = filteredData.filter(d => !d.isReturned);
                     const occupied = Math.round(outstanding.reduce((sum, d) => sum + d.palletSent, 0));
                     const rate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2) + '%';
