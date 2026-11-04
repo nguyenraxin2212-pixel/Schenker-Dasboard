@@ -412,7 +412,7 @@
                 document.getElementById('btnViewAllTrend').innerText = 'View All';
 
                 updateFilterDropdowns();
-                updateKPIsGlobal(); // Cố định KPI toàn kho khi nạp file
+                updateGlobalKPIsAndStaticCharts(); // Cố định KPI và 2 chart cố định theo toàn bộ kho
                 applyFilters();
                 alert(`Đã tải thành công ${rawData.length} dòng dữ liệu từ file Excel!`);
             };
@@ -455,7 +455,7 @@
             document.getElementById('lastUpdatedLabel').innerText = `Last Updated: 04/11/2026 13:29`;
 
             updateFilterDropdowns();
-            updateKPIsGlobal(); // Cố định KPI toàn kho
+            updateGlobalKPIsAndStaticCharts(); // Cố định KPI và 2 chart cố định
             applyFilters();
         }
 
@@ -557,8 +557,8 @@
             applyFilters();
         }
 
-        // Cố định KPI theo toàn bộ rawData (không thay đổi khi lọc)
-        function updateKPIsGlobal() {
+        // Cố định KPI và 2 chart (Capacity & Aging) theo toàn bộ rawData (không thay đổi khi lọc)
+        function updateGlobalKPIsAndStaticCharts() {
             const outstandingGlobal = rawData.filter(d => !d.isReturned);
             const occupied = Math.round(outstandingGlobal.reduce((sum, d) => sum + d.palletSent, 0));
             const available = Math.max(0, Math.floor(TOTAL_CAPACITY - occupied));
@@ -576,6 +576,20 @@
             document.getElementById('kpiUtilSub').innerText = `(${occupied} / ${TOTAL_CAPACITY})`;
             document.getElementById('kpiAvgAging').innerText = avgAging;
             document.getElementById('kpiOverdue').innerText = overdue;
+
+            // Update Capacity Chart (Doughnut) toàn kho
+            charts.capacity.data.datasets[0].data = [occupied, available];
+            charts.capacity.update();
+
+            // Update Aging Distribution Chart toàn kho
+            const a0_7 = Math.round(outstandingGlobal.filter(d => d.aging <= 7).reduce((sum, d) => sum + d.palletSent, 0));
+            const a8_30 = Math.round(outstandingGlobal.filter(d => d.aging > 7 && d.aging <= 30).reduce((sum, d) => sum + d.palletSent, 0));
+            const a31_60 = Math.round(outstandingGlobal.filter(d => d.aging > 30 && d.aging <= 60).reduce((sum, d) => sum + d.palletSent, 0));
+            const a61_90 = Math.round(outstandingGlobal.filter(d => d.aging > 60 && d.aging <= 90).reduce((sum, d) => sum + d.palletSent, 0));
+            const a90plus = Math.round(outstandingGlobal.filter(d => d.aging > 90).reduce((sum, d) => sum + d.palletSent, 0));
+
+            charts.aging.data.datasets[0].data = [a0_7, a8_30, a31_60, a61_90, a90plus];
+            charts.aging.update();
         }
 
         function initCharts() {
@@ -610,9 +624,9 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = '#002b49';
 
-                    // Capacity overview doughnut vẫn tính trên filteredData hoặc tổng kho? (Tùy chọn, để doughnut theo filteredData hoặc global đều được, ở đây để theo filteredData cho trực quan với biểu đồ)
-                    const outstanding = filteredData.filter(d => !d.isReturned);
-                    const occupied = Math.round(outstanding.reduce((sum, d) => sum + d.palletSent, 0));
+                    // Lấy số liệu toàn kho cố định cho nhãn trung tâm Doughnut
+                    const outstandingGlobal = rawData.filter(d => !d.isReturned);
+                    const occupied = Math.round(outstandingGlobal.reduce((sum, d) => sum + d.palletSent, 0));
                     const rate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2) + '%';
                     const textX = Math.round((width - ctx.measureText(rate).width) / 2);
                     const textY = height / 2 - 5;
@@ -712,21 +726,8 @@
             charts.trend.data.datasets[1].data = displayWeeks.map(w => Math.round(returnedGroup[w] || 0));
             charts.trend.update();
 
-            const outstandingFixed = filteredData.filter(d => !d.isReturned);
-            const occupiedFiltered = Math.round(outstandingFixed.reduce((sum, d) => sum + d.palletSent, 0));
-            const availableFiltered = Math.max(0, Math.floor(TOTAL_CAPACITY - occupiedFiltered));
-            charts.capacity.data.datasets[0].data = [occupiedFiltered, availableFiltered];
-            charts.capacity.update();
-
-            const a0_7 = Math.round(outstandingFixed.filter(d => d.aging <= 7).reduce((sum, d) => sum + d.palletSent, 0));
-            const a8_30 = Math.round(outstandingFixed.filter(d => d.aging > 7 && d.aging <= 30).reduce((sum, d) => sum + d.palletSent, 0));
-            const a31_60 = Math.round(outstandingFixed.filter(d => d.aging > 30 && d.aging <= 60).reduce((sum, d) => sum + d.palletSent, 0));
-            const a61_90 = Math.round(outstandingFixed.filter(d => d.aging > 60 && d.aging <= 90).reduce((sum, d) => sum + d.palletSent, 0));
-            const a90plus = Math.round(outstandingFixed.filter(d => d.aging > 90).reduce((sum, d) => sum + d.palletSent, 0));
-
-            charts.aging.data.datasets[0].data = [a0_7, a8_30, a31_60, a61_90, a90plus];
-            charts.aging.update();
-
+            // Cập nhật lại toàn bộ KPI và 2 biểu đồ tổng quan cố định toàn kho
+            updateGlobalKPIsAndStaticCharts();
             updateTopMaterialsTable();
         }
 
