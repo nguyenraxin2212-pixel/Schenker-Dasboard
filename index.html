@@ -194,7 +194,6 @@
                 <h3 class="text-sm font-bold text-db-blue mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-column"></i> Pallet Trend (Weekly)</h3>
                 <div class="h-60"><canvas id="chartTrend"></canvas></div>
             </div>
-            <!-- Nút View All / Thu gọn ở góc dưới bên phải -->
             <div class="flex justify-end mt-2">
                 <button id="btnViewAllTrend" onclick="toggleViewAllTrend()" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition">
                     View All
@@ -280,7 +279,7 @@
         let filteredData = [];
         let charts = {};
         let lastUpdatedDateObj = new Date();
-        let isTrendViewAll = false; // Trạng thái xem tất cả của chart Trend
+        let isTrendViewAll = false;
 
         Chart.register(ChartDataLabels);
 
@@ -371,7 +370,7 @@
 
                     const sentDate = parseExcelDate(row[0]);
                     const returnDateVal = parseExcelDate(row[7]);
-                    const palletSent = parseFloat(row[4]) || 1;
+                    const palletSent = parseFloat(row[4]) || 1; // Đọc chính xác cột Pallet từng dòng (vd: 0.5, 1...)
 
                     const isReturnBlank = !row[7];
                     
@@ -541,7 +540,7 @@
                 return matchYr && matchMo && matchWk;
             });
 
-            updateKPIsFixed();
+            updateKPIs();
             updateCharts();
             updateTable();
         }
@@ -557,12 +556,13 @@
             applyFilters();
         }
 
-        function updateKPIsFixed() {
-            const occupied = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
+        // Cập nhật KPI đồng bộ theo filteredData để khớp tuyệt đối với bảng chi tiết và file Excel
+        function updateKPIs() {
+            const outstanding = filteredData.filter(d => !d.isReturned);
+            const occupied = Math.round(outstanding.reduce((sum, d) => sum + d.palletSent, 0));
             const available = Math.max(0, Math.floor(TOTAL_CAPACITY - occupied));
             const utilRate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2);
             
-            const outstanding = rawData.filter(d => !d.isReturned);
             const avgAging = outstanding.length > 0 
                 ? (outstanding.reduce((sum, d) => sum + d.aging, 0) / outstanding.length).toFixed(1) 
                 : 0;
@@ -609,7 +609,8 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = '#002b49';
 
-                    const occupied = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
+                    const outstanding = filteredData.filter(d => !d.isReturned);
+                    const occupied = Math.round(outstanding.reduce((sum, d) => sum + d.palletSent, 0));
                     const rate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2) + '%';
                     const textX = Math.round((width - ctx.measureText(rate).width) / 2);
                     const textY = height / 2 - 5;
@@ -699,7 +700,6 @@
                 allTargetWeeks = selectedWeeks;
             }
 
-            // Mặc định chỉ hiển thị 6 tuần gần nhất nếu không bật View All
             let displayWeeks = allTargetWeeks;
             if (!isTrendViewAll && allTargetWeeks.length > 6) {
                 displayWeeks = allTargetWeeks.slice(-6);
@@ -710,12 +710,12 @@
             charts.trend.data.datasets[1].data = displayWeeks.map(w => Math.round(returnedGroup[w] || 0));
             charts.trend.update();
 
-            const occupiedFixed = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
-            const availableFixed = Math.max(0, Math.floor(TOTAL_CAPACITY - occupiedFixed));
-            charts.capacity.data.datasets[0].data = [occupiedFixed, availableFixed];
+            const outstandingFixed = filteredData.filter(d => !d.isReturned);
+            const occupiedFiltered = Math.round(outstandingFixed.reduce((sum, d) => sum + d.palletSent, 0));
+            const availableFiltered = Math.max(0, Math.floor(TOTAL_CAPACITY - occupiedFiltered));
+            charts.capacity.data.datasets[0].data = [occupiedFiltered, availableFiltered];
             charts.capacity.update();
 
-            const outstandingFixed = rawData.filter(d => !d.isReturned);
             const a0_7 = Math.round(outstandingFixed.filter(d => d.aging <= 7).reduce((sum, d) => sum + d.palletSent, 0));
             const a8_30 = Math.round(outstandingFixed.filter(d => d.aging > 7 && d.aging <= 30).reduce((sum, d) => sum + d.palletSent, 0));
             const a31_60 = Math.round(outstandingFixed.filter(d => d.aging > 30 && d.aging <= 60).reduce((sum, d) => sum + d.palletSent, 0));
@@ -763,7 +763,7 @@
                     <td class="p-2">${formatDate(d.dateSent)}</td>
                     <td class="p-2 font-semibold text-db-blue">${d.material}</td>
                     <td class="p-2">${d.packingId}</td>
-                    <td class="p-2 text-center font-bold">${Math.round(d.palletSent)}</td>
+                    <td class="p-2 text-center font-bold">${d.palletSent}</td>
                     <td class="p-2 text-right font-medium">${d.aging}</td>
                     <td class="p-2 text-center">
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -788,7 +788,7 @@
                 'Date Sent': formatDate(d.dateSent),
                 'Material': d.material,
                 'Packing ID': d.packingId,
-                'Pallet Sent': Math.round(d.palletSent),
+                'Pallet Sent': d.palletSent,
                 'Aging (Days)': d.aging,
                 'Status': d.status
             }));
