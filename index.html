@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB SCHENKER - Pallet Control Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .bg-db-blue { background-color: #002b49; }
+        .text-db-blue { color: #002b49; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 16px; }
+        
+        .dropdown-container { position: relative; display: inline-block; }
+        .dropdown-btn {
+            background-color: white;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #111827;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 120px;
+            height: 31px;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 150px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 50;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding: 4px;
+        }
+        .dropdown-content label {
+            display: block;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #374151;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        .dropdown-content label:hover { background-color: #f3f4f6; color: #002b49; }
+        .dropdown-container.active .dropdown-content { display: block; }
+    </style>
+</head>
+<body class="p-4 md:p-6 text-gray-800" onclick="closeDropdowns(event)">
+
+    <!-- HEADER & FILTERS -->
+    <header class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center justify-between gap-4 border-l-8 border-red-600">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 font-bold text-2xl text-red-600">
+                <span class="bg-red-600 text-white px-2 py-1 rounded">DB</span>
+                <span class="text-db-blue tracking-wide">SCHENKER</span>
+            </div>
+            <div class="h-8 w-px bg-gray-300 hidden md:block"></div>
+            <div>
+                <h1 class="text-xl font-bold text-db-blue">Pallet Control Dashboard</h1>
+                <p class="text-xs text-gray-500">Outbound / Return / Aging Management</p>
+            </div>
+        </div>
+
+        <!-- TIME FILTERS -->
+        <div class="flex flex-col items-end gap-1">
+            <div class="flex flex-wrap items-center gap-3 text-sm items-start">
+                
+                <!-- Year Dropdown -->
+                <div>
+                    <label class="block text-[10px] font-semibold text-gray-700 mb-0.5">Year</label>
+                    <div class="dropdown-container" id="dropYear" onclick="toggleDropdown(event, 'dropYear')">
+                        <div class="dropdown-btn">
+                            <span id="yearBtnText">All Years</span>
+                            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </div>
+                        <div class="dropdown-content" id="yearOptions" onclick="event.stopPropagation()">
+                            <label><input type="checkbox" value="All" checked onchange="handleCheckboxChange('year', 'All')"> All Years</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Month Dropdown -->
+                <div>
+                    <label class="block text-[10px] font-semibold text-gray-700 mb-0.5">Month</label>
+                    <div class="dropdown-container" id="dropMonth" onclick="toggleDropdown(event, 'dropMonth')">
+                        <div class="dropdown-btn">
+                            <span id="monthBtnText">All Months</span>
+                            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </div>
+                        <div class="dropdown-content" id="monthOptions" onclick="event.stopPropagation()">
+                            <label><input type="checkbox" value="All" checked onchange="handleCheckboxChange('month', 'All')"> All Months</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Week Dropdown -->
+                <div>
+                    <label class="block text-[10px] font-semibold text-gray-700 mb-0.5">Week</label>
+                    <div class="dropdown-container" id="dropWeek" onclick="toggleDropdown(event, 'dropWeek')">
+                        <div class="dropdown-btn" style="width: 140px;">
+                            <span id="weekBtnText">All Weeks</span>
+                            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </div>
+                        <div class="dropdown-content" id="weekOptions" style="width: 140px;" onclick="event.stopPropagation()">
+                            <label><input type="checkbox" value="All" checked onchange="handleCheckboxChange('week', 'All')"> All Weeks</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-end mt-4">
+                    <button onclick="resetFilters()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded text-xs font-bold border h-[31px]">
+                        <i class="fa-solid fa-rotate-right"></i> Reset
+                    </button>
+                </div>
+            </div>
+            <span class="text-[11px] font-bold text-gray-900 italic" id="lastUpdatedLabel">Last Updated: --</span>
+        </div>
+    </header>
+
+    <!-- KPI CARDS -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div class="card flex items-center border-l-4 border-blue-500">
+            <div class="p-3 bg-blue-50 text-blue-600 rounded-full mr-3"><i class="fa-solid fa-boxes-stacked text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Total Capacity</p>
+                <p class="text-2xl font-bold text-blue-900" id="kpiCapacity">324</p>
+                <p class="text-[10px] text-gray-400">Pallets</p>
+            </div>
+        </div>
+        <div class="card flex items-center border-l-4 border-indigo-500">
+            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-full mr-3"><i class="fa-solid fa-box text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Occupied Space</p>
+                <p class="text-2xl font-bold text-indigo-900" id="kpiOccupied">0</p>
+                <p class="text-[10px] text-gray-400">Pallets</p>
+            </div>
+        </div>
+        <div class="card flex items-center border-l-4 border-green-500">
+            <div class="p-3 bg-green-50 text-green-600 rounded-full mr-3"><i class="fa-solid fa-circle-check text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Available Space</p>
+                <p class="text-2xl font-bold text-green-600" id="kpiAvailable">324</p>
+                <p class="text-[10px] text-gray-400">Pallets</p>
+            </div>
+        </div>
+        <div class="card flex items-center border-l-4 border-cyan-500">
+            <div class="p-3 bg-cyan-50 text-cyan-600 rounded-full mr-3"><i class="fa-solid fa-chart-pie text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Utilization Rate</p>
+                <p class="text-2xl font-bold text-cyan-800" id="kpiUtilRate">0.0%</p>
+                <p class="text-[10px] text-gray-400" id="kpiUtilSub">(0 / 324)</p>
+            </div>
+        </div>
+        <div class="card flex items-center border-l-4 border-purple-500">
+            <div class="p-3 bg-purple-50 text-purple-600 rounded-full mr-3"><i class="fa-solid fa-clock text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Avg. Aging</p>
+                <p class="text-2xl font-bold text-purple-900" id="kpiAvgAging">0</p>
+                <p class="text-[10px] text-gray-400">Days</p>
+            </div>
+        </div>
+        <div class="card flex items-center border-l-4 border-red-500">
+            <div class="p-3 bg-red-50 text-red-600 rounded-full mr-3"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+            <div>
+                <p class="text-xs text-gray-500 font-semibold">Overdue Pallet</p>
+                <p class="text-2xl font-bold text-red-600" id="kpiOverdue">0</p>
+                <p class="text-[10px] text-gray-400">(> 30 Days)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CHARTS ROW -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="card lg:col-span-1 flex flex-col justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-db-blue mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-column"></i> Pallet Trend (Weekly)</h3>
+                <div class="h-60"><canvas id="chartTrend"></canvas></div>
+            </div>
+            <!-- Nút View All / Thu gọn ở góc dưới bên phải -->
+            <div class="flex justify-end mt-2">
+                <button id="btnViewAllTrend" onclick="toggleViewAllTrend()" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded transition">
+                    View All
+                </button>
+            </div>
+        </div>
+        <div class="card lg:col-span-1">
+            <h3 class="text-sm font-bold text-db-blue mb-4 flex items-center gap-2"><i class="fa-solid fa-compass"></i> Capacity Overview</h3>
+            <div class="h-64 flex justify-center items-center relative">
+                <canvas id="chartCapacity"></canvas>
+            </div>
+        </div>
+        <div class="card lg:col-span-1">
+            <h3 class="text-sm font-bold text-db-blue mb-4 flex items-center gap-2"><i class="fa-solid fa-hourglass-half"></i> Aging Distribution (Days)</h3>
+            <div class="h-64"><canvas id="chartAging"></canvas></div>
+        </div>
+    </div>
+
+    <!-- LOWER SECTION -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="card lg:col-span-1">
+            <h3 class="text-sm font-bold text-db-blue mb-4 flex items-center gap-2"><i class="fa-solid fa-list-check"></i> Top 10 Materials (Outstanding)</h3>
+            <div class="overflow-x-auto max-h-80">
+                <table class="w-full text-xs text-left">
+                    <thead class="bg-db-blue text-white sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2">Material</th>
+                            <th class="p-2 text-right">Pallets</th>
+                            <th class="p-2 text-right">% Outstanding</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topMaterialsTable" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card lg:col-span-2">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-db-blue flex items-center gap-2">
+                    <i class="fa-solid fa-table"></i> Pallet Details
+                </h3>
+                <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 shadow">
+                    <i class="fa-solid fa-file-export"></i> Export Excel
+                </button>
+            </div>
+            <div class="overflow-x-auto max-h-80">
+                <table class="w-full text-xs text-left border-collapse">
+                    <thead class="bg-db-blue text-white sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2">STT</th>
+                            <th class="p-2">Date Sent</th>
+                            <th class="p-2">Material</th>
+                            <th class="p-2">Packing ID</th>
+                            <th class="p-2 text-center">Pallet</th>
+                            <th class="p-2 text-right">Aging (Days)</th>
+                            <th class="p-2 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="palletTableBody" class="divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-white rounded-lg shadow p-4 flex items-center justify-between text-xs text-gray-500 border-t-4 border-gray-300">
+        <div>
+            <span>DB Schenker Pallet Management System &bull; Single-File HTML Dashboard</span>
+        </div>
+        <div class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded border border-gray-200">
+            <i class="fa-solid fa-file-excel text-green-600"></i>
+            <label class="font-bold text-gray-700 cursor-pointer hover:text-blue-600">
+                Cập nhật file Excel:
+                <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleExcelUpload(event)" class="hidden">
+            </label>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        const TOTAL_CAPACITY = 324;
+        let rawData = [];
+        let filteredData = [];
+        let charts = {};
+        let lastUpdatedDateObj = new Date();
+        let isTrendViewAll = false; // Trạng thái xem tất cả của chart Trend
+
+        Chart.register(ChartDataLabels);
+
+        window.onload = function() {
+            initCharts();
+            loadDefaultSampleData();
+        };
+
+        function parseExcelDate(serial) {
+            if (!serial) return null;
+            if (typeof serial === 'number') {
+                const utc_days = Math.floor(serial - 25569);
+                return new Date(utc_days * 86400 * 1000);
+            }
+            if (typeof serial === 'string') {
+                const parts = serial.trim().split(/[\/\-]/);
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+                        if (!isNaN(d)) return d;
+                    } else {
+                        const d = new Date(parts[2], parts[1] - 1, parts[0]);
+                        if (!isNaN(d)) return d;
+                    }
+                }
+            }
+            const d = new Date(serial);
+            return isNaN(d) ? null : d;
+        }
+
+        function formatDate(dateObj) {
+            if (!dateObj || isNaN(new Date(dateObj))) return '-';
+            const d = new Date(dateObj);
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        }
+
+        function getISOWeekLabel(dateObj) {
+            if (!dateObj || isNaN(new Date(dateObj))) return 'W00/22';
+            const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            const yr = String(d.getUTCFullYear()).slice(2);
+            return `W${String(weekNo).padStart(2, '0')}/${yr}`;
+        }
+
+        function toggleDropdown(event, dropId) {
+            event.stopPropagation();
+            const container = document.getElementById(dropId);
+            document.querySelectorAll('.dropdown-container').forEach(el => {
+                if (el.id !== dropId) el.classList.remove('active');
+            });
+            container.classList.toggle('active');
+        }
+
+        function closeDropdowns(event) {
+            if (!event.target.closest('.dropdown-container')) {
+                document.querySelectorAll('.dropdown-container').forEach(el => el.classList.remove('active'));
+            }
+        }
+
+        function toggleViewAllTrend() {
+            isTrendViewAll = !isTrendViewAll;
+            const btn = document.getElementById('btnViewAllTrend');
+            btn.innerText = isTrendViewAll ? 'Thu gọn' : 'View All';
+            updateCharts();
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames.includes('DATA') ? 'DATA' : workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                const rows = json.slice(3);
+                rawData = [];
+                const now = new Date();
+
+                rows.forEach((row, i) => {
+                    if (!row[0] || !row[1]) return;
+
+                    const sentDate = parseExcelDate(row[0]);
+                    const returnDateVal = parseExcelDate(row[7]);
+                    const palletSent = parseFloat(row[4]) || 1;
+
+                    const isReturnBlank = !row[7];
+                    
+                    let agingDays = 0;
+                    if (sentDate) {
+                        const endDate = isReturnBlank ? now : returnDateVal;
+                        agingDays = Math.max(0, Math.floor((endDate - sentDate) / (1000 * 60 * 60 * 24)));
+                        if (row[9] !== undefined && !isNaN(row[9])) {
+                            agingDays = Math.round(parseFloat(row[9]));
+                        }
+                    }
+
+                    let status = 'On Time (0-7 Days)';
+                    if (agingDays > 30) status = 'Overdue (> 30 Days)';
+                    else if (agingDays > 7) status = 'On Hold (8-30 Days)';
+
+                    rawData.push({
+                        stt: i + 1,
+                        dateSent: sentDate,
+                        year: sentDate ? sentDate.getFullYear() : null,
+                        month: sentDate ? sentDate.getMonth() + 1 : null,
+                        weekSent: sentDate ? getISOWeekLabel(sentDate) : null,
+                        weekReturn: returnDateVal ? getISOWeekLabel(returnDateVal) : null,
+                        material: String(row[1] || '').trim(),
+                        packingId: String(row[2] || '').trim(),
+                        palletSent: palletSent,
+                        returnDate: returnDateVal,
+                        aging: agingDays,
+                        isReturned: !isReturnBlank,
+                        status: status
+                    });
+                });
+
+                lastUpdatedDateObj = new Date();
+                const formattedDate = `${String(lastUpdatedDateObj.getDate()).padStart(2,'0')}/${String(lastUpdatedDateObj.getMonth() + 1).padStart(2,'0')}/${lastUpdatedDateObj.getFullYear()} ${String(lastUpdatedDateObj.getHours()).padStart(2,'0')}:${String(lastUpdatedDateObj.getMinutes()).padStart(2,'0')}`;
+                document.getElementById('lastUpdatedLabel').innerText = `Last Updated: ${formattedDate}`;
+
+                isTrendViewAll = false;
+                document.getElementById('btnViewAllTrend').innerText = 'View All';
+
+                updateFilterDropdowns();
+                applyFilters();
+                alert(`Đã tải thành công ${rawData.length} dòng dữ liệu từ file Excel!`);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadDefaultSampleData() {
+            const sampleMats = ['FC', 'MEXICO', 'USA', 'UK', 'RCSE', 'Others', 'GERMANY', 'JAPAN', 'KOREA', 'FRANCE', 'CHINA'];
+            rawData = [];
+            lastUpdatedDateObj = new Date(2026, 10, 4, 13, 29);
+
+            const yearsToTest = [2022, 2023, 2024, 2025, 2026];
+
+            for (let i = 1; i <= 200; i++) {
+                const randomYr = yearsToTest[Math.floor(Math.random() * yearsToTest.length)];
+                const sent = new Date(randomYr, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1);
+                const isBlank = Math.random() < 0.25;
+                const retDate = isBlank ? null : new Date(sent.getTime() + Math.random() * 45 * 86400000);
+                
+                const agingDays = isBlank ? Math.floor((new Date() - sent) / (1000 * 60 * 60 * 24)) : Math.floor((retDate - sent) / (1000 * 60 * 60 * 24));
+                let status = agingDays <= 7 ? 'On Time (0-7 Days)' : (agingDays <= 30 ? 'On Hold (8-30 Days)' : 'Overdue (> 30 Days)');
+
+                rawData.push({
+                    stt: i,
+                    dateSent: sent,
+                    year: sent.getFullYear(),
+                    month: sent.getMonth() + 1,
+                    weekSent: getISOWeekLabel(sent),
+                    weekReturn: retDate ? getISOWeekLabel(retDate) : null,
+                    material: sampleMats[Math.floor(Math.random() * sampleMats.length)],
+                    packingId: '603' + Math.floor(1000000 + Math.random() * 9000000),
+                    palletSent: 1,
+                    returnDate: retDate,
+                    aging: agingDays,
+                    isReturned: !isBlank,
+                    status: status
+                });
+            }
+
+            document.getElementById('lastUpdatedLabel').innerText = `Last Updated: 04/11/2026 13:29`;
+
+            updateFilterDropdowns();
+            applyFilters();
+        }
+
+        function updateFilterDropdowns() {
+            const years = [...new Set(rawData.map(d => d.year).filter(Boolean))].sort((a,b)=>a-b);
+            const months = [...new Set(rawData.map(d => d.month).filter(Boolean))].sort((a,b)=>a-b);
+            const weeks = [...new Set(rawData.map(d => d.weekSent).filter(Boolean))].sort();
+
+            populateDropdownList('yearOptions', years, 'Year');
+            populateDropdownList('monthOptions', months, 'Month');
+            populateDropdownList('weekOptions', weeks, 'Week');
+        }
+
+        function populateDropdownList(containerId, items, labelPrefix) {
+            const container = document.getElementById(containerId);
+            let html = `<label><input type="checkbox" value="All" checked onchange="handleCheckboxChange('${labelPrefix.toLowerCase()}', 'All')"> All ${labelPrefix}s</label>`;
+            items.forEach(item => {
+                const displayTxt = labelPrefix === 'Month' ? `Month ${item}` : item;
+                html += `<label><input type="checkbox" value="${item}" checked onchange="handleCheckboxChange('${labelPrefix.toLowerCase()}', '${item}')"> ${displayTxt}</label>`;
+            });
+            container.innerHTML = html;
+            updateDropdownButtonText(labelPrefix.toLowerCase());
+        }
+
+        function handleCheckboxChange(type, val) {
+            const container = document.getElementById(`${type}Options`);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            const allCheckbox = checkboxes[0];
+
+            if (val === 'All') {
+                checkboxes.forEach(cb => cb.checked = allCheckbox.checked);
+            } else {
+                const allChecked = Array.from(checkboxes).slice(1).every(cb => cb.checked);
+                allCheckbox.checked = allChecked;
+            }
+
+            updateDropdownButtonText(type);
+            applyFilters();
+        }
+
+        function updateDropdownButtonText(type) {
+            const container = document.getElementById(`${type}Options`);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).slice(1).filter(cb => cb.checked).length;
+            const allChecked = checkboxes[0].checked;
+
+            let text = `All ${type.charAt(0).toUpperCase() + type.slice(1)}s`;
+            if (!allChecked) {
+                if (checkedCount === 0) text = `None Selected`;
+                else if (checkedCount === 1) {
+                    const singleVal = Array.from(checkboxes).slice(1).find(cb => cb.checked).value;
+                    text = type === 'month' ? `Month ${singleVal}` : singleVal;
+                } else {
+                    text = `${checkedCount} selected`;
+                }
+            }
+            document.getElementById(`${type}BtnText`).innerText = text;
+        }
+
+        function getCheckedValues(type) {
+            const container = document.getElementById(`${type}Options`);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            if (checkboxes[0].checked) return ['All'];
+            const checked = [];
+            checkboxes.forEach((cb, idx) => {
+                if (idx > 0 && cb.checked) checked.push(cb.value);
+            });
+            return checked;
+        }
+
+        function applyFilters() {
+            const selectedYears = getCheckedValues('year');
+            const selectedMonths = getCheckedValues('month');
+            const selectedWeeks = getCheckedValues('week');
+
+            const isAllYears = selectedYears.includes('All');
+            const isAllMonths = selectedMonths.includes('All');
+            const isAllWeeks = selectedWeeks.includes('All');
+
+            filteredData = rawData.filter(d => {
+                const matchYr = isAllYears || selectedYears.includes(String(d.year));
+                const matchMo = isAllMonths || selectedMonths.includes(String(d.month));
+                const matchWk = isAllWeeks || selectedWeeks.includes(d.weekSent);
+                return matchYr && matchMo && matchWk;
+            });
+
+            updateKPIsFixed();
+            updateCharts();
+            updateTable();
+        }
+
+        function resetFilters() {
+            ['year', 'month', 'week'].forEach(type => {
+                const container = document.getElementById(`${type}Options`);
+                container.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+                updateDropdownButtonText(type);
+            });
+            isTrendViewAll = false;
+            document.getElementById('btnViewAllTrend').innerText = 'View All';
+            applyFilters();
+        }
+
+        function updateKPIsFixed() {
+            const occupied = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
+            const available = Math.max(0, Math.floor(TOTAL_CAPACITY - occupied));
+            const utilRate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2);
+            
+            const outstanding = rawData.filter(d => !d.isReturned);
+            const avgAging = outstanding.length > 0 
+                ? (outstanding.reduce((sum, d) => sum + d.aging, 0) / outstanding.length).toFixed(1) 
+                : 0;
+
+            const overdue = outstanding.filter(d => d.aging > 30).length;
+
+            document.getElementById('kpiOccupied').innerText = occupied;
+            document.getElementById('kpiAvailable').innerText = available;
+            document.getElementById('kpiUtilRate').innerText = utilRate + '%';
+            document.getElementById('kpiUtilSub').innerText = `(${occupied} / ${TOTAL_CAPACITY})`;
+            document.getElementById('kpiAvgAging').innerText = avgAging;
+            document.getElementById('kpiOverdue').innerText = overdue;
+        }
+
+        function initCharts() {
+            charts.trend = new Chart(document.getElementById('chartTrend'), {
+                type: 'bar',
+                data: { labels: [], datasets: [
+                    { label: 'Sent', data: [], backgroundColor: '#3b82f6' },
+                    { label: 'Returned', data: [], backgroundColor: '#10b981' }
+                ]},
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { grace: '18%' } },
+                    plugins: {
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            font: { size: 10, weight: 'bold' },
+                            color: '#374151'
+                        }
+                    }
+                }
+            });
+
+            const centerTextPlugin = {
+                id: 'centerText',
+                beforeDraw(chart) {
+                    const { width, height, ctx } = chart;
+                    ctx.restore();
+                    const fontSize = (height / 110).toFixed(2);
+                    ctx.font = `bold ${fontSize}em sans-serif`;
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#002b49';
+
+                    const occupied = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
+                    const rate = ((occupied / TOTAL_CAPACITY) * 100).toFixed(2) + '%';
+                    const textX = Math.round((width - ctx.measureText(rate).width) / 2);
+                    const textY = height / 2 - 5;
+
+                    ctx.fillText(rate, textX, textY);
+
+                    ctx.font = `normal ${fontSize * 0.45}em sans-serif`;
+                    ctx.fillStyle = '#6b7280';
+                    const subText = `${occupied} / ${TOTAL_CAPACITY}`;
+                    const subX = Math.round((width - ctx.measureText(subText).width) / 2);
+                    ctx.fillText(subText, subX, textY + 22);
+                    ctx.save();
+                }
+            };
+
+            charts.capacity = new Chart(document.getElementById('chartCapacity'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Occupied Space', 'Available Space'],
+                    datasets: [{ data: [0, TOTAL_CAPACITY], backgroundColor: ['#2563eb', '#e5e7eb'] }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '72%',
+                    plugins: { datalabels: { display: false }, legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+                },
+                plugins: [centerTextPlugin]
+            });
+
+            charts.aging = new Chart(document.getElementById('chartAging'), {
+                type: 'bar',
+                data: {
+                    labels: ['0–7 Days', '8–30 Days', '31–60 Days', '61–90 Days', '> 90 Days'],
+                    datasets: [{ label: 'Pallets', data: [0,0,0,0,0], backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'] }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { grace: '18%' } },
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            font: { size: 11, weight: 'bold' },
+                            color: '#374151',
+                            formatter: (value) => Math.round(value)
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            const sentGroup = {};
+            const returnedGroup = {};
+
+            filteredData.forEach(d => {
+                if (!d.dateSent) return;
+                const wk = d.weekSent;
+                sentGroup[wk] = (sentGroup[wk] || 0) + d.palletSent;
+            });
+
+            filteredData.forEach(d => {
+                if (!d.isReturned || !d.returnDate || !d.weekReturn) return;
+                const wk = d.weekReturn;
+                returnedGroup[wk] = (returnedGroup[wk] || 0) + d.palletSent;
+            });
+
+            const selectedWeeks = getCheckedValues('week');
+            const isAllWeeks = selectedWeeks.includes('All');
+            let allTargetWeeks = [];
+
+            if (isAllWeeks) {
+                const allWeeksInFiltered = new Set();
+                filteredData.forEach(d => {
+                    if (d.weekSent) allWeeksInFiltered.add(d.weekSent);
+                    if (d.weekReturn && d.isReturned) allWeeksInFiltered.add(d.weekReturn);
+                });
+                allTargetWeeks = Array.from(allWeeksInFiltered).sort();
+
+                if (allTargetWeeks.length === 0) {
+                    allTargetWeeks = [getISOWeekLabel(new Date())];
+                }
+            } else {
+                allTargetWeeks = selectedWeeks;
+            }
+
+            // Mặc định chỉ hiển thị 6 tuần gần nhất nếu không bật View All
+            let displayWeeks = allTargetWeeks;
+            if (!isTrendViewAll && allTargetWeeks.length > 6) {
+                displayWeeks = allTargetWeeks.slice(-6);
+            }
+
+            charts.trend.data.labels = displayWeeks;
+            charts.trend.data.datasets[0].data = displayWeeks.map(w => Math.round(sentGroup[w] || 0));
+            charts.trend.data.datasets[1].data = displayWeeks.map(w => Math.round(returnedGroup[w] || 0));
+            charts.trend.update();
+
+            const occupiedFixed = Math.floor(rawData.filter(d => !d.isReturned).reduce((sum, d) => sum + d.palletSent, 0));
+            const availableFixed = Math.max(0, Math.floor(TOTAL_CAPACITY - occupiedFixed));
+            charts.capacity.data.datasets[0].data = [occupiedFixed, availableFixed];
+            charts.capacity.update();
+
+            const outstandingFixed = rawData.filter(d => !d.isReturned);
+            const a0_7 = Math.round(outstandingFixed.filter(d => d.aging <= 7).reduce((sum, d) => sum + d.palletSent, 0));
+            const a8_30 = Math.round(outstandingFixed.filter(d => d.aging > 7 && d.aging <= 30).reduce((sum, d) => sum + d.palletSent, 0));
+            const a31_60 = Math.round(outstandingFixed.filter(d => d.aging > 30 && d.aging <= 60).reduce((sum, d) => sum + d.palletSent, 0));
+            const a61_90 = Math.round(outstandingFixed.filter(d => d.aging > 60 && d.aging <= 90).reduce((sum, d) => sum + d.palletSent, 0));
+            const a90plus = Math.round(outstandingFixed.filter(d => d.aging > 90).reduce((sum, d) => sum + d.palletSent, 0));
+
+            charts.aging.data.datasets[0].data = [a0_7, a8_30, a31_60, a61_90, a90plus];
+            charts.aging.update();
+
+            updateTopMaterialsTable();
+        }
+
+        function updateTopMaterialsTable() {
+            const outstanding = filteredData.filter(d => !d.isReturned);
+            const totalOut = outstanding.reduce((sum, d) => sum + d.palletSent, 0) || 1;
+
+            const counts = {};
+            outstanding.forEach(d => {
+                counts[d.material] = (counts[d.material] || 0) + d.palletSent;
+            });
+
+            const sorted = Object.keys(counts).map(k => ({
+                material: k,
+                pallets: Math.round(counts[k]),
+                pct: ((counts[k] / totalOut) * 100).toFixed(1)
+            })).sort((a,b) => b.pallets - a.pallets).slice(0, 10);
+
+            const tbody = document.getElementById('topMaterialsTable');
+            tbody.innerHTML = sorted.map(item => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-2 font-medium">${item.material}</td>
+                    <td class="p-2 text-right">${item.pallets}</td>
+                    <td class="p-2 text-right">${item.pct}%</td>
+                </tr>
+            `).join('') || `<tr><td colspan="3" class="p-2 text-center text-gray-400">No Data</td></tr>`;
+        }
+
+        function updateTable() {
+            const remainingPallets = filteredData.filter(d => !d.isReturned);
+            const tbody = document.getElementById('palletTableBody');
+            
+            tbody.innerHTML = remainingPallets.map((d, index) => `
+                <tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="p-2 text-gray-400">${index + 1}</td>
+                    <td class="p-2">${formatDate(d.dateSent)}</td>
+                    <td class="p-2 font-semibold text-db-blue">${d.material}</td>
+                    <td class="p-2">${d.packingId}</td>
+                    <td class="p-2 text-center font-bold">${Math.round(d.palletSent)}</td>
+                    <td class="p-2 text-right font-medium">${d.aging}</td>
+                    <td class="p-2 text-center">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            d.aging > 30 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                        }">
+                            ${d.status}
+                        </span>
+                    </td>
+                </tr>
+            `).join('') || `<tr><td colspan="7" class="p-2 text-center text-gray-400">Không có pallet nào đang tồn kho</td></tr>`;
+        }
+
+        function exportToExcel() {
+            const remainingPallets = filteredData.filter(d => !d.isReturned);
+            if (remainingPallets.length === 0) {
+                alert('Không có dữ liệu tồn kho để export!');
+                return;
+            }
+
+            const exportRows = remainingPallets.map((d, idx) => ({
+                'STT': idx + 1,
+                'Date Sent': formatDate(d.dateSent),
+                'Material': d.material,
+                'Packing ID': d.packingId,
+                'Pallet Sent': Math.round(d.palletSent),
+                'Aging (Days)': d.aging,
+                'Status': d.status
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Remaining_Pallets");
+            XLSX.writeFile(workbook, `Pallet_Stock_Remaining_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+    </script>
+</body>
+</html>
